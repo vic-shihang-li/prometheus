@@ -1,12 +1,14 @@
 package main
 
 import (
-//	"time"
-//	"fmt"
-//	"math"
+	"os"
+	"time"
+	"fmt"
+	"math"
 	"context"
-//	"math/rand"
-//	"sync"
+	"math/rand"
+	"sync"
+	"strconv"
 	"github.com/prometheus/prometheus/tsdb"
 	"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/pkg/labels"
@@ -29,8 +31,10 @@ type AppendInfo struct {
 	rx <-chan Write
 }
 
-func ingest(data []Data, labels []labels.Labels, db *tsdb.DB) {
+func ingest(data []Data, labels []labels.Labels, db *tsdb.DB, start_gate, done_gate *sync.WaitGroup) {
+	defer done_gate.Done();
 	refs := make([]uint64, len(labels));
+	start_gate.Wait();
 	for _, item := range data {
 		appender := db.Appender(context.Background());
 		for i, id := range labels {
@@ -47,113 +51,71 @@ func ingest(data []Data, labels []labels.Labels, db *tsdb.DB) {
 	}
 }
 
-func main() {
+func ingest_setup(nsrcs, nscrapers uint64, data []Data, db *tsdb.DB) {
+	series_ids := make([][]labels.Labels, nscrapers);
+	for i := uint64(0); i < nsrcs; i++ {
+		idx := i % nscrapers;
+		l := labels.New(labels.Label { Name: "id", Value: strconv.FormatUint(i, 10) });
+		series_ids[idx] = append(series_ids[idx], l);
+	}
+
+	start_gate := sync.WaitGroup{}
+	start_gate.Add(1);
+	done_gate := sync.WaitGroup{}
+	for _, ids := range series_ids {
+		done_gate.Add(1)
+		go ingest(data, ids, db, &start_gate, &done_gate)
+	}
+
+	start_gate.Done()
+	start := time.Now()
+	fmt.Println("Ingesting data")
+	done_gate.Wait()
+	elapsed := time.Since(start)
+	fmt.Println("Rate", (float64(uint64(len(data)) * nsrcs)/elapsed.Seconds()) / 1000000);
 }
 
-//func initialize(n, nsrcs, threads int, head *tsdb.Head) []AppendInfo {
-//	appenders := make([]AppendInfo, threads)
-//	srcs_per_chan := int(math.Ceil(float64(nsrcs)/float64(threads)))
-//	fmt.Println("srcs per chan", srcs_per_chan);
-//	for i:=0; i<threads; i++ {
-//		appenders[i].app = head.Appender(context.Background())
-//		ch := make(chan Write, n * srcs_per_chan)
-//		appenders[i].tx = ch
-//		appenders[i].rx = ch
-//	}
-//
-//	for i:=0; i<nsrcs; i++ {
-//		label := labels.FromStrings("num", string(i));
-//		app := appenders[i%threads].app
-//		refs := appenders[i%threads].refs
-//		ref, _ := app.Append(0, label, 0, 0.0)
-//		refs = append(refs, ref)
-//		appenders[i%threads].refs = refs
-//	}
-//	return appenders
-//}
-//
-//func gen_data(n int) []Data {
-//	data := make([]Data, n);
-//	for i := 0; i < int(n); i++ {
-//		item := Data { int64(i), rand.Float64() }
-//		data[i] = item
-//	}
-//	return data
-//}
-//
-//func load_src(n int, ref uint64, tx chan<- Write, wg *sync.WaitGroup) {
-//	for i := 0; i < int(n); i++ {
-//		item := Data { int64(i), rand.Float64() }
-//		tx <- Write { ref, item }
-//	}
-//	wg.Done()
-//}
-//
-//func load_all(n int, appenders []AppendInfo) {
-//	wg := sync.WaitGroup{}
-//	for i:=0; i<len(appenders); i++ {
-//		appender := appenders[i]
-//		for j:=0; j<len(appender.refs); j++ {
-//			ref := appender.refs[j]
-//			wg.Add(1)
-//			go load_src(n, ref, appender.tx, &wg)
-//		}
-//	}
-//	wg.Wait()
-//}
-//
-////var atmvar int32
-//func run_appender(append_info AppendInfo, sync, wg *sync.WaitGroup) {
-//	app := append_info.app
-//	rx := append_info.rx
-//	tx := append_info.tx
-//	close(tx)
-//
-//	sync.Wait()
-//	for item := range rx {
-//		app.Append(item.ref, nil, item.data.time, item.data.value)
-//		//atomic.AddInt32(&atmvar, 1)
-//	}
-//	app.Commit()
-//	wg.Done()
-//}
-//
-//func run_appender(head: 
-//
-//func main() {
-//
-//	nsrcs := 1
-//	routines := 72
-//	n := 100000000
-//	total_floats := n * nsrcs
-//	fmt.Println("N" , n, "NSRCS", nsrcs, "TOTAL", total_floats)
-//
-//	opts := tsdb.DefaultHeadOptions()
-//	opts.ChunkDirRoot = "temp/"
-//	head, _ := tsdb.NewHead(nil, nil, nil, opts)
-//	app := head.Appender(context.Background()); // Initialized with an initAppender
-//	app.Append(0, nil, 0, 0.0)
-//
-//	fmt.Println("Initializing")
-//	appenders := initialize(n, nsrcs, routines, head)
-//	fmt.Println("Loading")
-//	load_all(n, appenders)
-//
-//	wg := sync.WaitGroup{}
-//	sync := sync.WaitGroup{}
-//	sync.Add(1)
-//
-//	fmt.Println("Setting up")
-//	for i:=0; i<len(appenders); i++ {
-//		wg.Add(1)
-//		go run_appender(appenders[i], &sync, &wg)
-//	}
-//
-//	start := time.Now()
-//	sync.Done() // have all ingestion workers go at the same time!
-//	fmt.Println("Ingesting data")
-//	wg.Wait() // wait until all workers are done
-//	elapsed := time.Since(start)
-//	fmt.Println("Rate", (float64(n*nsrcs)/elapsed.Seconds()) / 1000000);
-//	//fmt.Println("Total loaded: ", atmvar);
-//}
+func random_float(min, max float64) float64 {
+	return min + rand.Float64() * (max - min)
+}
+
+func gen_data(n uint64) []Data {
+	data := make([]Data, n);
+	state := 0.0;
+	for i := 0; i < int(n); i++ {
+		state = state + random_float(-1, 1);
+		item := Data { int64(i), state }
+		data[i] = item
+	}
+	return data
+}
+
+func main() {
+
+	path := "/data/prometheus"
+	nsrcs := uint64(10000)
+	nscrapers := uint64(math.Min(float64(nsrcs), 64))
+	nsamples := uint64(100000)
+	total_floats := nsamples * nsrcs
+	fmt.Println("N Samples" , nsamples, "NSRCS", nsrcs, "TOTAL", total_floats)
+	fmt.Println("N Scrapers" , nscrapers, "; sources / scraper", nsrcs/nscrapers)
+
+	_, err := os.Stat(path);
+	if err == nil {
+		err := os.RemoveAll(path)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	data := gen_data(nsamples);
+
+	opts := tsdb.DefaultOptions()
+	opts.WALSegmentSize = -1
+	db, err := tsdb.Open(path, nil, nil, opts, nil);
+	if err != nil {
+		panic(err)
+	}
+	ingest_setup(nsrcs, nscrapers, data, db);
+}
+
