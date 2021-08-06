@@ -92,10 +92,11 @@ func gen_data(n uint64) []Data {
 
 func main() {
 
-	path := "/data/prometheus"
+	//path := "/data/prometheus"
+	path := "/hot/scratch/franco/prometheus"
 	nsrcs := uint64(10000)
 	nscrapers := uint64(math.Min(float64(nsrcs), 64))
-	nsamples := uint64(100000)
+	nsamples := uint64(10000)
 	total_floats := nsamples * nsrcs
 	fmt.Println("N Samples" , nsamples, "NSRCS", nsrcs, "TOTAL", total_floats)
 	fmt.Println("N Scrapers" , nscrapers, "; sources / scraper", nsrcs/nscrapers)
