@@ -69,11 +69,7 @@ func ingest_setup(nsrcs, nscrapers uint64, data []Data, db *tsdb.DB) {
 	}
 
 	start_gate.Done()
-	start := time.Now()
-	fmt.Println("Ingesting data")
 	done_gate.Wait()
-	elapsed := time.Since(start)
-	fmt.Println("Rate", (float64(uint64(len(data)) * nsrcs)/elapsed.Seconds()) / 1000000);
 }
 
 func random_float(min, max float64) float64 {
@@ -92,12 +88,11 @@ func gen_data(n uint64) []Data {
 }
 
 func main() {
-
-	path := "/data/fsolleza/data/prometheus-ingest"
+	path := "/data/fsolleza/data/prometheus-query"
 	os.RemoveAll(path)
-	nsrcs := uint64(10000)
+	nsrcs := uint64(100000)
 	nscrapers := uint64(math.Min(float64(nsrcs), 32))
-	nsamples := uint64(2000)
+	nsamples := uint64(100000)
 	total_floats := nsamples * nsrcs
 	fmt.Println("N Samples" , nsamples, "NSRCS", nsrcs, "TOTAL", total_floats)
 	fmt.Println("N Scrapers" , nscrapers, "; sources / scraper", nsrcs/nscrapers)
@@ -116,7 +111,6 @@ func main() {
 	println("Max timestamp: ", time.Unix(0, 0).UTC().Add(time.Millisecond * 100000).String())
 
 	opts := tsdb.DefaultOptions()
-	opts.WALSegmentSize = -1
 	db, err := tsdb.Open(path, nil, nil, opts, nil);
 	if err != nil {
 		panic(err)
