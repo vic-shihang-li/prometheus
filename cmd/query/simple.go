@@ -25,7 +25,6 @@ func random_ids(max, nids int) string {
 			break
 		}
 	}
-	fmt.Println(len(id_set))
 
 	query_ids := ""
 	l := 0
@@ -40,10 +39,19 @@ func random_ids(max, nids int) string {
 	return query_ids
 }
 
-func setup() {
-	//path := "/data/fsolleza/data/prometheus-query"
-	//path := "/data/prometheus-query"
-	path := "/hot/scratch/franco/prometheus-query"
+const double_group_by = true
+const n_ids = 100000
+const n_srcs_to_query = 1000
+const n_samples = 100000
+const n_lookback = 3000
+const rate = time.Millisecond
+const window_stride = 3
+const window_size = 3
+const path = "/hot/scratch/franco/prometheus-query"
+const double_group_by_query = "max(max_over_time(series{id=~\"%s\"}[%dms]))"
+const single_group_by_query = "max_over_time(series{id=~\"%s\"}[%dms])"
+
+func run() {
 	storage, err := tsdb.OpenDBReadOnly(path, nil);
 	if err != nil {
 		panic(err)
@@ -55,24 +63,21 @@ func setup() {
 		MaxSamples: 50000000,
 		Timeout:    100 * time.Second,
 	}
+
 	engine := promql.NewEngine(eng_opts)
 
-
 	origin := time.Unix(0, 0)
-	n_ids := 100000
-	n_srcs_to_query := 1000
-	n_samples := 100000
-	n_lookback := 1000
-	rate := time.Millisecond
-	window_stride := 3
-	window_size := 3
-
 	query_ids := random_ids(n_ids, n_srcs_to_query)
 	end := origin.Add(rate * time.Duration(n_samples-1))
 	start := end.Add(-rate * time.Duration(n_lookback))
 
 	fmt.Println("Querying")
-	q := fmt.Sprintf("max(min_over_time(series{id=~\"%s\"}[%dms]))", query_ids, window_size)
+	qstr := single_group_by_query;
+	if double_group_by {
+		qstr = double_group_by_query
+	}
+
+	q := fmt.Sprintf(qstr, query_ids, window_size)
 	//fmt.Println(q)
 	timer_start := time.Now()
 	qry, err := engine.NewRangeQuery(storage, q, start, end, time.Duration(window_stride) * rate)
@@ -93,6 +98,11 @@ func setup() {
 }
 
 func main() {
-	setup()
+	if double_group_by {
+		fmt.Println("Double group by")
+	} else {
+		fmt.Println("Single group by")
+	}
+	run()
 }
 
