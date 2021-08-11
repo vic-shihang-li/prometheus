@@ -113,6 +113,7 @@ func main() {
 	println("Max timestamp: ", time.Unix(0, 0).UTC().Add(time.Millisecond * 100000).String())
 
 	opts := tsdb.DefaultOptions()
+	opts.WALSegmentSize = -1
 	db, err := tsdb.Open(path, nil, nil, opts, nil);
 	if err != nil {
 		panic(err)

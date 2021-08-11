@@ -41,9 +41,9 @@ func random_ids(max, nids int) string {
 
 const double_group_by = true
 const n_ids = 100000
-const n_srcs_to_query = 1000
+const n_srcs_to_query = 10000
 const n_samples = 100000
-const n_lookback = 3000
+const n_lookback = 1000
 const rate = time.Millisecond
 const window_stride = 3
 const window_size = 3
@@ -72,6 +72,7 @@ func run() {
 	start := end.Add(-rate * time.Duration(n_lookback))
 
 	fmt.Println("Querying")
+	fmt.Println("Time range", start, end)
 	qstr := single_group_by_query;
 	if double_group_by {
 		qstr = double_group_by_query
