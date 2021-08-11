@@ -81,14 +81,16 @@ func gen_data(n uint64) []Data {
 	state := 0.0;
 	for i := 0; i < int(n); i++ {
 		state = state + random_float(-1, 1);
-		item := Data { int64(i), float64(i) + 0.12345 }
+		item := Data { int64(i), state } // each sample is a millisecond
 		data[i] = item
 	}
 	return data
 }
 
 func main() {
-	path := "/data/fsolleza/data/prometheus-query"
+	//path := "/data/fsolleza/data/prometheus-query"
+	//path := "/data/prometheus-query"
+	path := "/hot/scratch/franco/prometheus-query"
 	os.RemoveAll(path)
 	nsrcs := uint64(100000)
 	nscrapers := uint64(math.Min(float64(nsrcs), 32))
@@ -121,5 +123,8 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	read, err := tsdb.OpenDBReadOnly(path, nil);
+	read.FlushWAL(path)
 }
 
