@@ -39,15 +39,15 @@ func random_ids(max, nids int) string {
 	return query_ids
 }
 
-const double_group_by = true
+const double_group_by = false
 const n_ids = 100000
 const n_srcs_to_query = 10000
 const n_samples = 100000
 const n_lookback = 1000
-const rate = time.Millisecond
+const rate = time.Second
 const window_stride = 3
 const window_size = 3
-const path = "/hot/scratch/franco/prometheus-query"
+const path = "/data/fsolleza/data/prometheus-query"
 const double_group_by_query = "max(max_over_time(series{id=~\"%s\"}[%dms]))"
 const single_group_by_query = "max_over_time(series{id=~\"%s\"}[%dms])"
 

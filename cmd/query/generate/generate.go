@@ -81,19 +81,19 @@ func gen_data(n uint64) []Data {
 	state := 0.0;
 	for i := 0; i < int(n); i++ {
 		state = state + random_float(-1, 1);
-		item := Data { int64(i), state } // each sample is a millisecond
+		item := Data { int64(i * 1000), state } // each sample is a second
 		data[i] = item
 	}
 	return data
 }
 
 func main() {
-	//path := "/data/fsolleza/data/prometheus-query"
+	path := "/data/fsolleza/data/prometheus-query"
 	//path := "/data/prometheus-query"
-	path := "/hot/scratch/franco/prometheus-query"
+	//path := "/hot/scratch/franco/prometheus-query"
 	os.RemoveAll(path)
 	nsrcs := uint64(100000)
-	nscrapers := uint64(math.Min(float64(nsrcs), 32))
+	nscrapers := uint64(math.Min(float64(nsrcs), 1))
 	nsamples := uint64(100000)
 	total_floats := nsamples * nsrcs
 	fmt.Println("N Samples" , nsamples, "NSRCS", nsrcs, "TOTAL", total_floats)
@@ -110,16 +110,17 @@ func main() {
 	data := gen_data(nsamples)
 	fmt.Printf("%+v\n", data[0])
 	fmt.Printf("%+v\n", data[len(data)-1])
-	println("Max timestamp: ", time.Unix(0, 0).UTC().Add(time.Millisecond * 100000).String())
+	println("Max timestamp: ", time.Unix(0, 0).UTC().Add(time.Second * 100000).String())
 
 	opts := tsdb.DefaultOptions()
-	opts.WALSegmentSize = -1
+	//opts.WALSegmentSize = -1
 	db, err := tsdb.Open(path, nil, nil, opts, nil);
 	if err != nil {
 		panic(err)
 	}
 	ingest_setup(nsrcs, nscrapers, data, db);
 
+	db.Compact()
 	err = db.Close()
 	if err != nil {
 		panic(err)
@@ -127,5 +128,10 @@ func main() {
 
 	read, err := tsdb.OpenDBReadOnly(path, nil);
 	read.FlushWAL(path)
+
+	// Do some WAL cleanup to save disc space
+	walpath := path + "/wal"
+	os.RemoveAll(walpath)
+	os.Mkdir(walpath, 0755)
 }
 
