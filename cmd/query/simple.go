@@ -41,7 +41,7 @@ func random_ids(max, nids int) string {
 
 const double_group_by = false
 const n_ids = 100000
-const n_srcs_to_query = 10000
+const n_srcs_to_query = 1000
 const n_samples = 100000
 const n_lookback = 1000
 const rate = time.Second
