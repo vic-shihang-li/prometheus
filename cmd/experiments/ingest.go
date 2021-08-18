@@ -10,7 +10,6 @@ import (
 	"sync"
 	"strconv"
 	"github.com/prometheus/prometheus/tsdb"
-	//"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/pkg/labels"
 )
 
