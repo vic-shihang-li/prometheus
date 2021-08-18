@@ -10,26 +10,13 @@ import (
 	"sync"
 	"strconv"
 	"github.com/prometheus/prometheus/tsdb"
-	"github.com/prometheus/prometheus/storage"
+	//"github.com/prometheus/prometheus/storage"
 	"github.com/prometheus/prometheus/pkg/labels"
-	//"github.com/prometheus/prometheus/promql"
 )
 
 type Data struct {
 	time int64
 	value float64
-}
-
-type Write struct {
-	ref uint64
-	data Data
-}
-
-type AppendInfo struct {
-	app storage.Appender
-	refs []uint64
-	tx chan<- Write
-	rx <-chan Write
 }
 
 func ingest(data []Data, labels []labels.Labels, db *tsdb.DB, start_gate, done_gate *sync.WaitGroup) {
@@ -85,19 +72,18 @@ func gen_data(n uint64) []Data {
 	state := 0.0;
 	for i := 0; i < int(n); i++ {
 		state = state + random_float(-1, 1);
-		item := Data { int64(i), float64(i) + 0.12345 }
+		item := Data { int64(i) * int64(INTERVAL), state }
 		data[i] = item
 	}
 	return data
 }
 
-func main() {
-
-	path := "/data/fsolleza/data/prometheus-ingest"
-	os.RemoveAll(path)
-	nsrcs := uint64(10000)
-	nscrapers := uint64(math.Min(float64(nsrcs), 32))
-	nsamples := uint64(2000)
+func run_ingest() {
+	path := PATH
+	os.RemoveAll(PATH)
+	nsrcs := NSRCS
+	nscrapers := uint64(math.Min(float64(nsrcs), float64(NSCRAPERS)))
+	nsamples := NSAMPLES
 	total_floats := nsamples * nsrcs
 	fmt.Println("N Samples" , nsamples, "NSRCS", nsrcs, "TOTAL", total_floats)
 	fmt.Println("N Scrapers" , nscrapers, "; sources / scraper", nsrcs/nscrapers)
@@ -111,21 +97,36 @@ func main() {
 	}
 
 	data := gen_data(nsamples)
-	fmt.Printf("%+v\n", data[0])
-	fmt.Printf("%+v\n", data[len(data)-1])
-	println("Max timestamp: ", time.Unix(0, 0).UTC().Add(time.Millisecond * 100000).String())
+	fmt.Printf("first sample %+v\n", data[0])
+	fmt.Printf("last sample %+v\n", data[len(data)-1])
 
 	opts := tsdb.DefaultOptions()
 	opts.WALSegmentSize = -1
+	//opts.MinBlockDuration = nsamples
+	//opts.MaxBlockDuration = nsamples
+	//opts.AllowOverlappingBlocks = true
 	db, err := tsdb.Open(path, nil, nil, opts, nil);
 	if err != nil {
 		panic(err)
 	}
 	ingest_setup(nsrcs, nscrapers, data, db);
 
+	// Compact head into a block for reads
+	fmt.Println("Forced Head Compaction")
+	head := db.Head()
+	min := head.MinTime()
+	max := head.MaxTime()
+	db.CompactHead(tsdb.NewRangeHead(head, min, max))
+
+	//db.Compact()
 	err = db.Close()
 	if err != nil {
 		panic(err)
 	}
+
+	walpath := path + "/wal"
+	os.RemoveAll(walpath)
+	os.Mkdir(walpath, 0755)
 }
+
 
