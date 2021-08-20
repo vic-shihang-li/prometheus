@@ -21,31 +21,45 @@ type Data struct {
 func ingest(data []Data, labels []labels.Labels, db *tsdb.DB, start_gate, done_gate *sync.WaitGroup) {
 	defer done_gate.Done();
 	refs := make([]uint64, len(labels));
-	offsets := make([]int64, len(labels));
 
-	label_len := int64(len(labels))
-	data_len := int64(len(data))
-	z := NewZipfian(label_len, 0.99)
-	sequence := NewZipfianSamples(label_len, data_len, z)
-	_ = sequence
+	//offsets := make([]int64, len(labels));
+	//label_len := int64(len(labels))
+	//data_len := int64(len(data))
+	//z := NewZipfian(label_len, 0.99)
+	//sequence := NewZipfianSamples(label_len, data_len, z)
 
 	start_gate.Wait();
-	for true {
+	//for true {
+	//	appender := db.Appender(nil);
+	//	for i := 0; i < int(SAMPLES_PER_APPENDER); i++ {
+	//		idx := sequence.NextItem();
+	//		if idx == nil {
+	//			break
+	//		}
+	//		refid := refs[*idx]
+	//		label := labels[*idx]
+	//		item := data[offsets[*idx]]
+	//		ref, err := appender.Append(refid, label, item.time, item.value)
+	//		if err != nil {
+	//			panic(err)
+	//		}
+	//		refs[*idx] = ref
+	//		offsets[*idx] += 1
+	//	}
+	//	err := appender.Commit()
+	//	if err != nil {
+	//		panic(err)
+	//	}
+	//}
+
+	for _, item := range data {
 		appender := db.Appender(nil);
-		for i := 0; i < int(SAMPLES_PER_APPENDER); i++ {
-			idx := sequence.NextItem();
-			if idx == nil {
-				break
-			}
-			refid := refs[*idx]
-			label := labels[*idx]
-			item := data[offsets[*idx]]
-			ref, err := appender.Append(refid, label, item.time, item.value)
+		for i, id := range labels {
+			ref, err := appender.Append(refs[i], id, item.time, item.value);
 			if err != nil {
 				panic(err)
 			}
-			refs[*idx] = ref
-			offsets[*idx] += 1
+			refs[i] = ref
 		}
 		err := appender.Commit()
 		if err != nil {

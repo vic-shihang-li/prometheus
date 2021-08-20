@@ -92,7 +92,10 @@ func (z * ZipfianSamples) NextItem() *int64 {
 		source := z.sources[idx]
 		z.counts[source] += 1
 		if z.counts[source] == z.samples {
-			z.sources = append(z.sources[:idx], z.sources[idx+1:]...)
+			l := len(z.sources)
+			z.sources[idx] = z.sources[l-1] // move the last item to the removed position
+			z.sources = z.sources[:l-1] // then reslice
+			//z.sources = append(z.sources[:idx], z.sources[idx+1:]...)
 			if len(z.sources) > 0 {
 				z.zipf.reset(int64(len(z.sources)))
 			}
