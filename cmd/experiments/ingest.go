@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	//"strings"
 	"io/ioutil"
 	"time"
 	"fmt"
@@ -17,7 +18,12 @@ import (
 	plabels "github.com/prometheus/prometheus/pkg/labels"
 )
 
-func load_univariate() [][]Data {
+type DataEntry struct {
+	Timestamps []int64
+	Values map[string][]float64
+}
+
+func load_univariate() map[string][]Data {
 	fmt.Println("Loading data")
 	name := "bench1_univariate.json"
 	if SYNTH {
@@ -27,32 +33,32 @@ func load_univariate() [][]Data {
 	if err != nil {
 		panic(err)
 	}
-	dict := make(map[string]map[string][]float64)
+	dict := make(map[string]DataEntry)
 	err = json.Unmarshal(content, &dict)
 	if err != nil {
 		panic(err)
 	}
-	data := make([][]Data, 0)
-	for _, d := range dict {
-		data = append(data, make_univariate_samples(d))
+	data := make(map[string][]Data)
+	for k, d := range dict {
+		d := make_univariate_samples(d)
+		if len(d) > MINSAMPLES {
+			data[k] = d
+		}
 	}
 	return data
 }
 
-func make_univariate_samples(d map[string][]float64) []Data {
-	timeseries, ok := d["timestamps"]
+func make_univariate_samples(d DataEntry) []Data {
+	timeseries := d.Timestamps
+	values, ok := d.Values["values"]
 	if !ok {
-		panic("No timestamp data")
-	}
-	values, ok := d["values"]
-	if !ok {
-		panic("No timestamp data")
+		panic("No values data")
 	}
 
 	data := make([]Data, 0)
 	for i := 0; i < len(timeseries); i++ {
 		d := Data {
-			time: int64(timeseries[i]),
+			time: timeseries[i],
 			value: float64(values[i]),
 		}
 		data = append(data, d)
@@ -75,7 +81,7 @@ func ingest(data_map map[uint64][]Data, ids []uint64, db *tsdb.DB, start_gate, d
 	labels := make([]plabels.Labels, 0)
 	data := make([][]Data, 0)
 	for _, id := range ids {
-		label := plabels.FromStrings("__name__", "series", "id", "id_" + strconv.Itoa(int(id)))
+		label := plabels.FromStrings("id", "id_" + strconv.Itoa(int(id)))
 		labels = append(labels, label)
 		d, ok := data_map[id]
 		if !ok {
@@ -117,61 +123,26 @@ func ingest(data_map map[uint64][]Data, ids []uint64, db *tsdb.DB, start_gate, d
 	done_gate.Done();
 	atomic.AddUint64(total_count, uint64(insert_count));
 	count_gate.Done();
-
-
-
-	//for _, item := range data {
-	//	appender := db.Appender(nil);
-	//	for i, id := range labels {
-	//		ref, err := appender.Append(refs[i], id, item.time, item.value);
-	//		if err != nil {
-	//			panic(err)
-	//		}
-	//		refs[i] = ref
-	//	}
-	//	err := appender.Commit()
-	//	if err != nil {
-	//		panic(err)
-	//	}
-	//}
-
-	//offsets := make([]int64, len(labels));
-	//label_len := int64(len(labels))
-	//data_len := int64(len(data))
-	//z := NewZipfian(label_len, 0.99)
-	//sequence := NewZipfianSamples(label_len, data_len, z)
-
-	//for true {
-	//	appender := db.Appender(nil);
-	//	for i := 0; i < int(SAMPLES_PER_APPENDER); i++ {
-	//		idx := sequence.NextItem();
-	//		if idx == nil {
-	//			break
-	//		}
-	//		refid := refs[*idx]
-	//		label := labels[*idx]
-	//		item := data[offsets[*idx]]
-	//		ref, err := appender.Append(refid, label, item.time, item.value)
-	//		if err != nil {
-	//			panic(err)
-	//		}
-	//		refs[*idx] = ref
-	//		offsets[*idx] += 1
-	//	}
-	//	err := appender.Commit()
-	//	if err != nil {
-	//		panic(err)
-	//	}
-	//}
 }
 
-func ingest_setup(nsrcs, nscrapers uint64, data [][]Data, db *tsdb.DB) {
+func ingest_setup(nsrcs, nscrapers uint64, data map[string][]Data, db *tsdb.DB) {
+
+	datasets := make([][]Data, 0)
+	dataset_names := make([]string, 0)
+	for k, d := range data {
+		datasets = append(datasets, d)
+		dataset_names = append(dataset_names, k)
+	}
+
 	series_ids := make([][]uint64, nscrapers);
 	data_map := make(map[uint64][]Data)
+	name_map := make(map[uint64]string)
 	for i := uint64(0); i < nsrcs; i++ {
 		idx := i % nscrapers;
 		series_ids[idx] = append(series_ids[idx], i)
-		data_map[i] = data[rand.Intn(len(data))]
+		data_idx := rand.Intn(len(datasets))
+		data_map[i] = datasets[data_idx]
+		name_map[i] = dataset_names[data_idx]
 	}
 
 	start_gate := sync.WaitGroup{}
@@ -194,6 +165,9 @@ func ingest_setup(nsrcs, nscrapers uint64, data [][]Data, db *tsdb.DB) {
 
 	fmt.Println("Wrote", total_count, "floats in", elapsed);
 	fmt.Println("Rate (million floats / second)", (float64(total_count)/elapsed.Seconds()) / 1000000);
+
+	fmt.Println("Wrinting range information")
+	write_ranges("prom", data_map, name_map)
 }
 
 func run_ingest() {

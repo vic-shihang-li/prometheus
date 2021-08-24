@@ -414,13 +414,13 @@ func (db *DBReadOnly) FlushWAL(dir string) (returnErr error) {
 }
 
 func (db *DBReadOnly) loadDataAsQueryable(maxt int64) (storage.SampleAndChunkQueryable, error) {
-	fmt.Println("Load data as queryable")
+	//fmt.Println("Load data as queryable")
 	select {
 	case <-db.closed:
 		return nil, ErrClosed
 	default:
 	}
-	fmt.Println("Loading blocks")
+	//fmt.Println("Loading blocks")
 	blockReaders, err := db.Blocks()
 	if err != nil {
 		return nil, err
@@ -434,7 +434,7 @@ func (db *DBReadOnly) loadDataAsQueryable(maxt int64) (storage.SampleAndChunkQue
 		blocks[i] = b
 	}
 
-	fmt.Println("Loading head")
+	//fmt.Println("Loading head")
 	opts := DefaultHeadOptions()
 	opts.ChunkDirRoot = db.dir
 	head, err := NewHead(nil, db.logger, nil, opts, NewHeadStats())
@@ -447,8 +447,8 @@ func (db *DBReadOnly) loadDataAsQueryable(maxt int64) (storage.SampleAndChunkQue
 	}
 
 	// Also add the WAL if the current blocks don't cover the requests time range.
-	fmt.Println("Loading logger")
-	fmt.Println("maxBlockTime, maxt", maxBlockTime, maxt)
+	//fmt.Println("Loading logger")
+	//fmt.Println("maxBlockTime, maxt", maxBlockTime, maxt)
 	if maxBlockTime <= maxt {
 		if err := head.Close(); err != nil {
 			return nil, err
@@ -473,7 +473,6 @@ func (db *DBReadOnly) loadDataAsQueryable(maxt int64) (storage.SampleAndChunkQue
 		head.wal = nil
 	}
 
-	fmt.Println("Done with loading as queryable")
 	db.closers = append(db.closers, head)
 	return &DB{
 		dir:    db.dir,
