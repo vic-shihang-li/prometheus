@@ -144,6 +144,7 @@ func ingest_setup(nsrcs, nscrapers uint64, data map[string][]Data, db *tsdb.DB) 
 		data_map[i] = datasets[data_idx]
 		name_map[i] = dataset_names[data_idx]
 	}
+	DATA_MAP = data_map
 
 	start_gate := sync.WaitGroup{}
 	start_gate.Add(1);
@@ -175,40 +176,44 @@ func run_ingest() {
 
 	// Load data (only univariate, control whether Synthetic or not using the SYNTH variable)
 	data := load_univariate()
-	nsrcs := NSRCS
-	nscrapers := uint64(math.Min(float64(nsrcs), float64(NSCRAPERS)))
-	fmt.Println("NSRCS", nsrcs, "N Scrapers" , nscrapers, " sources per scraper", nsrcs/nscrapers)
+	for _, thread := range []int{ 8, 16, 32, 40, 48, 56, 64, 72 } {
+		nsrcs := NSRCS
+		nscrapers := uint64(math.Min(float64(nsrcs), float64(NSCRAPERS)))
+		nscrapers = uint64(thread)
+		fmt.Println("NSRCS", nsrcs, "N Scrapers" , nscrapers, " sources per scraper", nsrcs/nscrapers)
 
-	// Setup tsdb
-	opts := tsdb.DefaultOptions()
-	opts.WALSegmentSize = -1
+		// Setup tsdb
+		opts := tsdb.DefaultOptions()
+		opts.WALSegmentSize = -1
 
-	// Force the head to not cut otherwise an out of bounds error occurs after the head is cut
-	// and there are lagging writers. We want to ingest everything.
-	// This sets min and max block duration to a year in millis. Data generated are in millis
-	opts.MinBlockDuration = 31557600000
-	opts.MaxBlockDuration = 31557600000
-	opts.RetentionDuration = 31557600000
+		// Force the head to not cut otherwise an out of bounds error occurs after the head is cut
+		// and there are lagging writers. We want to ingest everything.
+		// This sets min and max block duration to a year in millis. Data generated are in millis
+		opts.MinBlockDuration = 31557600000
+		opts.MaxBlockDuration = 31557600000
+		opts.RetentionDuration = 31557600000
 
-	db, err := tsdb.Open(PATH, nil, nil, opts, nil);
-	if err != nil {
-		panic(err)
-	}
+		db, err := tsdb.Open(PATH, nil, nil, opts, nil);
+		if err != nil {
+			panic(err)
+		}
 
-	// Run ingestion
-	ingest_setup(nsrcs, nscrapers, data, db);
+		// Run ingestion
+		ingest_setup(nsrcs, nscrapers, data, db);
 
-	// Compact head into a block for reads
-	fmt.Println("Forced Head Compaction")
-	head := db.Head()
-	min := head.MinTime()
-	max := head.MaxTime()
-	db.CompactHead(tsdb.NewRangeHead(head, min, max))
+		// Compact head into a block for reads
+		fmt.Println("NOT COMPACTING")
+		//fmt.Println("Forced Head Compaction")
+		//head := db.Head()
+		//min := head.MinTime()
+		//max := head.MaxTime()
+		//db.CompactHead(tsdb.NewRangeHead(head, min, max))
 
-	//db.Compact()
-	err = db.Close()
-	if err != nil {
-		panic(err)
+		//db.Compact()
+		err = db.Close()
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	walpath := PATH + "/wal"

@@ -2,35 +2,38 @@ package main
 
 import (
 	"os"
-	"math"
-	"time"
-	"fmt"
+	//"math"
 	"context"
+	"fmt"
+	"github.com/prometheus/prometheus/pkg/labels"
+	"github.com/prometheus/prometheus/tsdb"
 	"math/rand"
+	"strconv"
 	"sync"
 	"sync/atomic"
-	"strconv"
-	"github.com/prometheus/prometheus/tsdb"
-	"github.com/prometheus/prometheus/pkg/labels"
+	"time"
 )
 
+var DATA_MAP map[uint64][]Data
+var DATA map[string][]Data
+
 type Interval struct {
-	low int64
+	low  int64
 	high int64
 }
 
-func query_runner(info map[uint64]RangeInfo, storage *tsdb.DBReadOnly, totalSamples *uint64, setupGate, startGate, doneGate *sync.WaitGroup){
+func query_runner(storage *tsdb.DB, totalSamples *uint64, setupGate, startGate, doneGate *sync.WaitGroup) {
 
-	storage, err := tsdb.OpenDBReadOnly(PATH, nil);
-	if err != nil {
-		panic(err)
-	}
+	//storage, err := tsdb.OpenDBReadOnly(PATH, nil);
+	//if err != nil {
+	//	panic(err)
+	//}
 
-	zipf := NewZipfian(int64(len(info)), Q_ZIPF)
+	zipf := NewZipfian(int64(len(DATA_MAP)), Q_ZIPF)
 	_ = zipf
 
 	keys := make([]uint64, 0)
-	for k, _ := range info {
+	for k, _ := range DATA_MAP {
 		keys = append(keys, k)
 	}
 	rand.Shuffle(len(keys), func(i, j int) {
@@ -40,14 +43,16 @@ func query_runner(info map[uint64]RangeInfo, storage *tsdb.DBReadOnly, totalSamp
 	queries := make([]map[string]Interval, 0)
 	for i := 0; i < Q_NQUERIES; i++ {
 		q := make(map[string]Interval)
-		for j := 0; j < Q_NSRCS; j++ {
+		for len(q) < Q_NSRCS {
 			key := keys[int(zipf.NextItem())]
-			inf, ok := info[key]
+			info, ok := DATA_MAP[key]
 			if !ok {
 				panic("No key")
 			}
+			high := info[len(info)-1].time
+			low := info[len(info)-(rand.Intn(5000-1000)+1000)].time
 			id := "id_" + strconv.Itoa(int(key))
-			rng := Interval { low: inf.TsQuery(), high: inf.TsLast }
+			rng := Interval{low: low, high: high}
 			q[id] = rng
 		}
 		queries = append(queries, q)
@@ -63,80 +68,51 @@ func query_runner(info map[uint64]RangeInfo, storage *tsdb.DBReadOnly, totalSamp
 	atomic.AddUint64(totalSamples, localSamples)
 }
 
-func query(q map[string]Interval, storage *tsdb.DBReadOnly) uint64 {
+func query(q map[string]Interval, storage *tsdb.DB) uint64 {
 
-	mint := int64(math.MaxInt64)
-	maxt := int64(math.MinInt64)
-	matchers := make([]*labels.Matcher, len(q))
-	idx := 0
+	totalSamples := uint64(0)
+	done_gate := sync.WaitGroup{}
 	for id, v := range q {
-		if mint > v.low {
-			mint = v.low
-		}
-		if maxt < v.high {
-			maxt = v.high
-		}
 		m, err := labels.NewMatcher(labels.MatchEqual, "id", id)
+		querier, err := storage.Querier(context.Background(), v.low, v.high)
 		if err != nil {
 			panic(err)
 		}
-		matchers[idx] = m
-		idx += 1
-	}
-
-	querier, err := storage.Querier(context.Background(), mint, maxt)
-	if err != nil {
-		panic(err)
-	}
-
-	totalSamples := uint64(0)
-
-	done_gate := sync.WaitGroup{};
-	for _, matcher := range matchers {
-		go func() {
-			ss := querier.Select(false, nil, matcher)
-			localSamples := uint64(0)
-			for ss.Next() {
-				it := ss.At().Iterator()
-				for it.Next() {
-					localSamples += 1
-				}
+		ss := querier.Select(false, nil, m)
+		for ss.Next() {
+			it := ss.At().Iterator()
+			for it.Next() {
+				totalSamples += 1
 			}
-			atomic.AddUint64(&totalSamples, localSamples)
-		}()
+		}
+		querier.Close()
 	}
-	querier.Close()
 	done_gate.Wait()
 	return totalSamples
 }
 
 func run_get_range() {
 
-	_, err := os.Stat(PATH);
-	if err != nil {
-		panic(err)
-	}
+	storage := setup_db()
 
-	fmt.Println("Setting up")
-	storage, err := tsdb.OpenDBReadOnly(PATH, nil);
-	if err != nil {
-		panic(err)
-	}
+	Q_NSRCS = 5000
+	Q_THREADS = 32
+	Q_NQUERIES = 10000 / Q_THREADS
+	Q_ZIPF = 0.5
+	fmt.Println("Q_NSRCS", i, "Q_THREADS", 1, "Q_NQUERIES", Q_NQUERIES)
 
 	totalSamples := uint64(0)
 
-	fmt.Println("Loading range information")
-	ranges := read_ranges("prom")
-	setup_gate := sync.WaitGroup{};
-	start_gate := sync.WaitGroup{};
+	setup_gate := sync.WaitGroup{}
+	start_gate := sync.WaitGroup{}
 	start_gate.Add(1)
-	done_gate := sync.WaitGroup{};
+	done_gate := sync.WaitGroup{}
 
 	fmt.Println("Launching threads")
 	for i := 0; i < Q_THREADS; i++ {
 		setup_gate.Add(1)
 		done_gate.Add(1)
-		go query_runner(ranges, storage, &totalSamples, &setup_gate, &start_gate, &done_gate)
+		go query_runner(storage, &totalSamples, &setup_gate, &start_gate, &done_gate)
 	}
 	fmt.Println("Waiting for threads to set up")
 	setup_gate.Wait()
@@ -147,11 +123,41 @@ func run_get_range() {
 	dur := time.Since(start)
 	fmt.Println("All threads done")
 
+	fmt.Println(">>>")
 	fmt.Println("Total samples read", totalSamples)
-	fmt.Println("Total queries executed", Q_THREADS * Q_NQUERIES)
-	fmt.Println("Total timeseries queried", Q_THREADS * Q_NQUERIES * Q_NSRCS)
+	fmt.Println("Total queries executed", Q_THREADS*Q_NQUERIES)
+	fmt.Println("Total timeseries queried", Q_THREADS*Q_NQUERIES*Q_NSRCS)
 	fmt.Println("Time Elapsed", dur)
+	fmt.Println(">> Million Floats per second", (float64(totalSamples)/dur.Seconds())/1000000)
 	storage.Close()
 }
 
+func setup_db() *tsdb.DB {
+	start := time.Now()
 
+	DATA = load_univariate()
+
+	// Setup tsdb
+	opts := tsdb.DefaultOptions()
+	opts.WALSegmentSize = -1
+
+	// Force the head to not cut otherwise an out of bounds error occurs after the head is cut
+	// and there are lagging writers. We want to ingest everything.
+	// This sets min and max block duration to a year in millis. Data generated are in millis
+	opts.MinBlockDuration = 31557600000
+	opts.MaxBlockDuration = 31557600000
+	opts.RetentionDuration = 31557600000
+
+	os.RemoveAll(PATH)
+	db, err := tsdb.Open(PATH, nil, nil, opts, nil)
+	if err != nil {
+		panic(err)
+	}
+
+	// Run ingestion
+	fmt.Println("Ingesting data")
+	ingest_setup(uint64(100000), 72, DATA, db)
+	fmt.Println("Loading data took", time.Since(start))
+	fmt.Println("Loaded", len(DATA_MAP), "timeseries")
+	return db
+}

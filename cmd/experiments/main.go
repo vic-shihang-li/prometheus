@@ -11,7 +11,7 @@ var PATH = "/data/fsolleza/data/prometheus"
 var DATAPATH = "/data/fsolleza/data/data"
 var TMPPATH = "/data/fsolleza/data/tmp"
 
-var NSRCS = uint64(100000)
+var NSRCS = uint64(50000)
 var NSCRAPERS = 32
 var SYNTH = false
 var MINSAMPLES = 30000
@@ -32,8 +32,8 @@ var Q_NSRCS = 1
 var Q_NSAMPLES = 1000
 
 func main() {
-	run_ingest()
-	//run_get_range()
+	//run_ingest()
+	run_get_range()
 }
 
 type RangeInfo struct {
