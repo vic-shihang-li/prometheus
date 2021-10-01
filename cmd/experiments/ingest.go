@@ -91,6 +91,7 @@ func ingest(data_map map[uint64][]Data, ids []uint64, db *tsdb.DB, start_gate, d
 	}
 	done_count := 0
 	insert_count := 0
+	var total_duration time.Duration = 0
 
 	start_gate.Wait();
 	for done_count < len(labels) {
@@ -101,10 +102,12 @@ func ingest(data_map map[uint64][]Data, ids []uint64, db *tsdb.DB, start_gate, d
 				item := data[i][0]
 				label := labels[i]
 				ref_id := refs[i]
+				start := time.Now()
 				ref, err := appender.Append(ref_id, label, item.time, item.value)
 				if err != nil {
 					panic(err)
 				}
+				total_duration = total_duration + time.Since(start)
 				if len(data[i]) == 1 {
 					done_count += 1
 					done[i] = true
@@ -114,11 +117,15 @@ func ingest(data_map map[uint64][]Data, ids []uint64, db *tsdb.DB, start_gate, d
 				refs[i] = ref
 			}
 		}
+		start := time.Now()
 		err := appender.Commit()
 		if err != nil {
 			panic(err)
 		}
+		total_duration = total_duration + time.Since(start)
 	}
+
+	fmt.Println("Ingest rate:", (float64(insert_count) / total_duration.Seconds()) / 1000000)
 
 	done_gate.Done();
 	atomic.AddUint64(total_count, uint64(insert_count));
@@ -144,7 +151,7 @@ func ingest_setup(nsrcs, nscrapers uint64, data map[string][]Data, db *tsdb.DB) 
 		data_map[i] = datasets[data_idx]
 		name_map[i] = dataset_names[data_idx]
 	}
-	DATA_MAP = data_map
+	//DATA_MAP = data_map
 
 	start_gate := sync.WaitGroup{}
 	start_gate.Add(1);
@@ -176,10 +183,10 @@ func run_ingest() {
 
 	// Load data (only univariate, control whether Synthetic or not using the SYNTH variable)
 	data := load_univariate()
-	for _, thread := range []int{ 8, 16, 32, 40, 48, 56, 64, 72 } {
+	//for _, thread := range []int{ 8, 16, 32, 40, 48, 56, 64, 72 } {
 		nsrcs := NSRCS
 		nscrapers := uint64(math.Min(float64(nsrcs), float64(NSCRAPERS)))
-		nscrapers = uint64(thread)
+		nscrapers = uint64(1)
 		fmt.Println("NSRCS", nsrcs, "N Scrapers" , nscrapers, " sources per scraper", nsrcs/nscrapers)
 
 		// Setup tsdb
@@ -214,7 +221,7 @@ func run_ingest() {
 		if err != nil {
 			panic(err)
 		}
-	}
+	//}
 
 	walpath := PATH + "/wal"
 	os.RemoveAll(walpath)
