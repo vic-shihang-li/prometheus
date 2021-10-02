@@ -186,7 +186,7 @@ func run_ingest() {
 	//for _, thread := range []int{ 8, 16, 32, 40, 48, 56, 64, 72 } {
 		nsrcs := NSRCS
 		nscrapers := uint64(math.Min(float64(nsrcs), float64(NSCRAPERS)))
-		nscrapers = uint64(1)
+		nscrapers = uint64(64)
 		fmt.Println("NSRCS", nsrcs, "N Scrapers" , nscrapers, " sources per scraper", nsrcs/nscrapers)
 
 		// Setup tsdb

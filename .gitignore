@@ -4,6 +4,8 @@
 /*.yml
 *.exe
 *.bin
+perf*
+tmp/
 
 /prometheus
 /promtool
