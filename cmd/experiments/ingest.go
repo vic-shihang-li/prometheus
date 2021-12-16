@@ -14,6 +14,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"strconv"
+	"github.com/dterei/gotsc"
 	"github.com/prometheus/prometheus/tsdb"
 	plabels "github.com/prometheus/prometheus/pkg/labels"
 )
@@ -71,7 +72,7 @@ type Data struct {
 	value float64
 }
 
-func ingest(data_map map[uint64][]Data, ids []uint64, db *tsdb.DB, start_gate, done_gate, count_gate *sync.WaitGroup, total_count *uint64) {
+func ingest(data_map map[uint64][]Data, ids []uint64, db *tsdb.DB, start_gate, done_gate, count_gate *sync.WaitGroup, total_count *uint64, total_rate *float64, m *sync.Mutex) {
 
 	refs := make([]uint64, len(ids));
 	done := make([]bool, len(ids))
@@ -90,9 +91,11 @@ func ingest(data_map map[uint64][]Data, ids []uint64, db *tsdb.DB, start_gate, d
 		data = append(data, d[:])
 	}
 	done_count := 0
-	insert_count := 0
+	insert_count := uint64(0)
 
 	start_gate.Wait();
+	total_cycles := uint64(0);
+	tsc := gotsc.TSCOverhead()
 	for done_count < len(labels) {
 		appender := db.Appender(nil);
 		for i := 0; i < len(labels); i++ {
@@ -101,10 +104,13 @@ func ingest(data_map map[uint64][]Data, ids []uint64, db *tsdb.DB, start_gate, d
 				item := data[i][0]
 				label := labels[i]
 				ref_id := refs[i]
+				start := gotsc.BenchStart()
 				ref, err := appender.Append(ref_id, label, item.time, item.value)
 				if err != nil {
 					panic(err)
 				}
+				end := gotsc.BenchEnd()
+				total_cycles += end - start - tsc;
 				if len(data[i]) == 1 {
 					done_count += 1
 					done[i] = true
@@ -114,15 +120,29 @@ func ingest(data_map map[uint64][]Data, ids []uint64, db *tsdb.DB, start_gate, d
 				refs[i] = ref
 			}
 		}
+		start := gotsc.BenchStart()
 		err := appender.Commit()
 		if err != nil {
 			panic(err)
 		}
+		end := gotsc.BenchEnd()
+		total_cycles += end - start - tsc;
 	}
 
 	done_gate.Done();
 	atomic.AddUint64(total_count, uint64(insert_count));
 	count_gate.Done();
+	dur := float64(total_cycles) / (2693.672 * 1000000.0);
+	//fmt.Printf("cycles: %d, seconds: %.6f\n", total_cycles, dur);
+	//fmt.Println("Insert count: ", insert_count);
+	rate_per_second := float64(insert_count) / dur;
+	rate_mill_per_second := rate_per_second / 1000000.0;
+
+	m.Lock();
+	*total_rate += rate_mill_per_second;
+	m.Unlock();
+
+	//fmt.Printf("Thread rate (mfps): %.6f\n", rate_mill_per_second)
 }
 
 func ingest_setup(nsrcs, nscrapers uint64, data map[string][]Data, db *tsdb.DB) {
@@ -151,10 +171,12 @@ func ingest_setup(nsrcs, nscrapers uint64, data map[string][]Data, db *tsdb.DB) 
 	done_gate := sync.WaitGroup{}
 	count_gate := sync.WaitGroup{}
 	total_count := uint64(0);
+	total_rate := 0.0;
+	var m sync.Mutex;
 	for _, ids := range series_ids {
 		done_gate.Add(1)
 		count_gate.Add(1)
-		go ingest(data_map, ids, db, &start_gate, &done_gate, &count_gate, &total_count)
+		go ingest(data_map, ids, db, &start_gate, &done_gate, &count_gate, &total_count, &total_rate, &m)
 	}
 
 	start_gate.Done()
@@ -166,6 +188,7 @@ func ingest_setup(nsrcs, nscrapers uint64, data map[string][]Data, db *tsdb.DB) 
 
 	fmt.Println("Wrote", total_count, "floats in", elapsed);
 	fmt.Println("Rate (million floats / second)", (float64(total_count)/elapsed.Seconds()) / 1000000);
+	fmt.Println("TSC Rate (million floats/ second)", total_rate)
 
 	fmt.Println("Wrinting range information")
 	write_ranges("prom", data_map, name_map)
@@ -176,10 +199,10 @@ func run_ingest() {
 
 	// Load data (only univariate, control whether Synthetic or not using the SYNTH variable)
 	data := load_univariate()
-	for _, thread := range []int{ 8, 16, 32, 40, 48, 56, 64, 72 } {
-		nsrcs := NSRCS
+	for _, iteration := range []int{ 2, 3, 4, 5, 6, 7, 8, 9, 10} {
+		nsrcs := uint64(iteration * 10000)
 		nscrapers := uint64(math.Min(float64(nsrcs), float64(NSCRAPERS)))
-		nscrapers = uint64(thread)
+		//nscrapers = NSCRAPERS
 		fmt.Println("NSRCS", nsrcs, "N Scrapers" , nscrapers, " sources per scraper", nsrcs/nscrapers)
 
 		// Setup tsdb
