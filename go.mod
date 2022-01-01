@@ -17,6 +17,7 @@ require (
 	github.com/digitalocean/godo v1.65.0
 	github.com/docker/docker v20.10.8+incompatible
 	github.com/docker/go-connections v0.4.0 // indirect
+	github.com/dterei/gotsc v0.0.0-20160722215413-e78f872945c6 // indirect
 	github.com/edsrzf/mmap-go v1.0.0
 	github.com/envoyproxy/go-control-plane v0.9.9
 	github.com/envoyproxy/protoc-gen-validate v0.6.1

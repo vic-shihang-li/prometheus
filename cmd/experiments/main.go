@@ -4,17 +4,18 @@ import (
 	"path/filepath"
 	"encoding/json"
 	"io/ioutil"
-	"io/fs"
+	//"io/fs"
 )
 
-var PATH = "/data/fsolleza/data/prometheus"
-var DATAPATH = "/data/fsolleza/data/data"
-var TMPPATH = "/data/fsolleza/data/tmp"
+var PATH = "/home/fsolleza/Sandbox/tmp/prometheus/out"
+var DATAPATH = "/home/fsolleza/Sandbox/tmp/data_json"
+var TMPPATH = "/home/fsolleza/Sandbox/tmp/prometheus/tmp"
 
 var NSRCS = uint64(10000)
 var NSCRAPERS = 64
 var SYNTH = false
 var MINSAMPLES = 30000
+var CYCLES_PER_SECOND = 2693.672 * 1000000.0
 
 // Number of querying threads
 var Q_THREADS = 32
@@ -73,31 +74,31 @@ func read_ranges(prefix string) map[uint64]RangeInfo {
 	return dict
 }
 
-func write_ranges(prefix string, data_map map[uint64][]Data, name_map map[uint64]string) {
-	ranges := make(map[uint64]RangeInfo)
-	for k, d := range data_map {
-		dataset_name, ok := name_map[k];
-		if !ok {
-			panic("name not in map")
-		}
-		info := RangeInfo {
-			Id: k,
-			Dataset_name: dataset_name,
-			Nsamples: len(d),
-			TsFirst: d[0].time,
-			TsLast: d[len(d)-1].time,
-			Ts1k: d[len(d)-1000].time,
-			Ts10k: d[len(d)-10000].time,
-			Ts5k: d[len(d)-5000].time,
-		}
-		ranges[k] = info;
-	}
-
-	towrite, err := json.MarshalIndent(ranges, "", "  ")
-	if err != nil {
-		panic(err)
-	}
-	name := prefix + "-range-info.json"
-	ioutil.WriteFile(filepath.Join(TMPPATH, name), towrite, fs.ModePerm)
-}
-
+//func write_ranges(prefix string, data_map map[uint64][]Data, name_map map[uint64]string) {
+//	ranges := make(map[uint64]RangeInfo)
+//	for k, d := range data_map {
+//		dataset_name, ok := name_map[k];
+//		if !ok {
+//			panic("name not in map")
+//		}
+//		info := RangeInfo {
+//			Id: k,
+//			Dataset_name: dataset_name,
+//			Nsamples: len(d),
+//			TsFirst: d[0].time,
+//			TsLast: d[len(d)-1].time,
+//			Ts1k: d[len(d)-1000].time,
+//			Ts10k: d[len(d)-10000].time,
+//			Ts5k: d[len(d)-5000].time,
+//		}
+//		ranges[k] = info;
+//	}
+//
+//	towrite, err := json.MarshalIndent(ranges, "", "  ")
+//	if err != nil {
+//		panic(err)
+//	}
+//	name := prefix + "-range-info.json"
+//	ioutil.WriteFile(filepath.Join(TMPPATH, name), towrite, fs.ModePerm)
+//}
+//
