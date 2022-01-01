@@ -37,42 +37,42 @@ func main() {
 	//run_get_range()
 }
 
-type RangeInfo struct {
-	Id uint64 `json: id`
-	Dataset_name string
-	Nsamples int
-	TsFirst int64
-	TsLast int64
-	Ts1k int64
-	Ts5k int64
-	Ts10k int64
-}
-
-func (r *RangeInfo) TsQuery() int64 {
-	if Q_NSAMPLES == 1000 {
-		return r.Ts1k
-	} else if Q_NSAMPLES == 5000 {
-		return r.Ts5k
-	} else if Q_NSAMPLES == 10000 {
-		return r.Ts10k
-	} else {
-		panic("Q_NSAMPLES invalid")
-	}
-}
-
-func read_ranges(prefix string) map[uint64]RangeInfo {
-	name := prefix + "-range-info.json"
-	content, err := ioutil.ReadFile(filepath.Join(TMPPATH, name))
-	if err != nil {
-		panic(err)
-	}
-	dict := make(map[uint64]RangeInfo)
-	err = json.Unmarshal(content, &dict)
-	if err != nil {
-		panic(err)
-	}
-	return dict
-}
+//type RangeInfo struct {
+//	Id uint64 `json: id`
+//	Dataset_name string
+//	Nsamples int
+//	TsFirst int64
+//	TsLast int64
+//	Ts1k int64
+//	Ts5k int64
+//	Ts10k int64
+//}
+//
+//func (r *RangeInfo) TsQuery() int64 {
+//	if Q_NSAMPLES == 1000 {
+//		return r.Ts1k
+//	} else if Q_NSAMPLES == 5000 {
+//		return r.Ts5k
+//	} else if Q_NSAMPLES == 10000 {
+//		return r.Ts10k
+//	} else {
+//		panic("Q_NSAMPLES invalid")
+//	}
+//}
+//
+//func read_ranges(prefix string) map[uint64]RangeInfo {
+//	name := prefix + "-range-info.json"
+//	content, err := ioutil.ReadFile(filepath.Join(TMPPATH, name))
+//	if err != nil {
+//		panic(err)
+//	}
+//	dict := make(map[uint64]RangeInfo)
+//	err = json.Unmarshal(content, &dict)
+//	if err != nil {
+//		panic(err)
+//	}
+//	return dict
+//}
 
 //func write_ranges(prefix string, data_map map[uint64][]Data, name_map map[uint64]string) {
 //	ranges := make(map[uint64]RangeInfo)
