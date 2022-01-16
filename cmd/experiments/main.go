@@ -1,9 +1,9 @@
 package main
 
 import (
-	"path/filepath"
-	"encoding/json"
-	"io/ioutil"
+	//"path/filepath"
+	//"encoding/json"
+	//"io/ioutil"
 	//"io/fs"
 )
 
@@ -11,26 +11,26 @@ var PATH = "/home/fsolleza/Sandbox/tmp/prometheus/out"
 var DATAPATH = "/home/fsolleza/Sandbox/tmp/data_json"
 var TMPPATH = "/home/fsolleza/Sandbox/tmp/prometheus/tmp"
 
-var NSRCS = uint64(10000)
-var NSCRAPERS = 64
-var SYNTH = false
-var MINSAMPLES = 30000
+//var NSRCS = uint64(10000)
+//var NSCRAPERS = 64
+//var SYNTH = false
+//var MINSAMPLES = 30000
 var CYCLES_PER_SECOND = 2693.672 * 1000000.0
 
-// Number of querying threads
-var Q_THREADS = 32
-
-// Zipf skew for queries w/in each thread
-var Q_ZIPF = 0.99
-
-// Number of queries per thread
-var Q_NQUERIES = 1000
-
-// Number of srcs to lookup per query
-var Q_NSRCS = 1
-
-// Determines the time range (1000, 5000, 10000)
-var Q_NSAMPLES = 1000
+//// Number of querying threads
+//var Q_THREADS = 32
+//
+//// Zipf skew for queries w/in each thread
+//var Q_ZIPF = 0.99
+//
+//// Number of queries per thread
+//var Q_NQUERIES = 1000
+//
+//// Number of srcs to lookup per query
+//var Q_NSRCS = 1
+//
+//// Determines the time range (1000, 5000, 10000)
+//var Q_NSAMPLES = 1000
 
 func main() {
 	run_ingest()

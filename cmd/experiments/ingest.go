@@ -44,7 +44,7 @@ func load_univariate() [][]Sample {
 	series := make([][]Sample, 0)
 	for _, d := range dict {
 		l := len(d.Timestamps)
-		if l > MINSAMPLES {
+		if l > 30000 {
 			timeseries := d.Timestamps
 			values, ok := d.Values["values"]
 			if !ok {
@@ -92,7 +92,7 @@ func ingest(ingest_id, nsrcs uint64, series [][]Sample, db *tsdb.DB, setup_gate,
 
 	data := make([][]Sample, 0);
 	labels := make([]plabels.Labels, 0);
-	for i := uint64(0); i < NSRCS; i++ {
+	for i := uint64(0); i < nsrcs; i++ {
 		label := plabels.FromStrings(
 			"ingest_id",
 			strconv.Itoa(int(ingest_id)),
@@ -160,7 +160,7 @@ func run_ingest() {
 
 	data := load_univariate()
 	// Load data (only univariate, control whether Synthetic or not using the SYNTH variable)
-	nsrcs := uint64(10000)
+	nsrcs := uint64(100000)
 	nscrapers := uint64(1)
 	fmt.Println("******")
 	fmt.Println("sources per scraper: ", nsrcs)
