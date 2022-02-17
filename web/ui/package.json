@@ -2,7 +2,7 @@
   "name": "prometheus",
   "private": true,
   "scripts": {
-    "build": "bash build_ui.sh --all",
+    "build": "export NODE_OPTIONS=--openssl-legacy-provider && bash build_ui.sh --all",
     "build:module": "bash build_ui.sh --build-module",
     "start": "npm run start -w react-app",
     "test": "npm run test --workspaces",
